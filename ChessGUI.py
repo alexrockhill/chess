@@ -2,6 +2,7 @@ from tkinter import Tk, Canvas, Frame
 from Board import Board, name_dict
 from func import (oppositeColor, color2int, int2color, moveloc, loc2int, int2loc,
 				  makePiece, isPawnStartingRow, isLastRank, colors)
+from PIL import ImageGrab
 
 class ChessGui(Frame):
 
@@ -21,6 +22,11 @@ class ChessGui(Frame):
 		self.canvas.tag_bind('piece', '<ButtonPress-1>', self.on_piece_press)
 		self.canvas.tag_bind('piece', '<ButtonRelease-1>', self.on_piece_release)
 		self.canvas.tag_bind('piece', '<B1-Motion>', self.on_piece_motion)
+
+		'''self.canvas.update()
+		x = root.winfo_rootx()
+		y = root.winfo_rooty()
+		ImageGrab.grab((x,y,x+self.size*1.7,y+self.size*1.7)).save('example.jpg')'''
 
 	def loc2piece(self):
 		return self.board.squares[self._drag_data['piece_loc']].getPiece()
@@ -74,7 +80,7 @@ class ChessGui(Frame):
 						if name in name_dict and not name in ['pawn','king']:
 							self.board._makePiece(name,self.loc2piece().color,
 												  square.loc)
-							
+
 						else:
 							name = None
 				outcome = self.board.checkCheckMate()
