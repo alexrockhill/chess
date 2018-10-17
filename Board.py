@@ -1,6 +1,9 @@
-from Pieces import Pawn, Rook, Knight, Bishop, Queen, King, name_dict
-from func import (oppositeColor, color2int, int2color, moveloc, loc2int, int2loc,
-				  makePiece, isPawnStartingRow, isLastRank, colors)
+from Pieces import Pawn, Rook, Knight, Bishop, Queen, King
+from func import (oppositeColor, int2color, loc2int, colors, nameOrder, rowColors)
+
+name_dict = {'pawn':Pawn,'rook':Rook,'knight':Knight,
+			 'bishop':Bishop,'queen':Queen,'king':King}
+
 class Square:
 
 	def __init__(self,column,row,color,piece=None,rect=None,display=None):
@@ -18,7 +21,7 @@ class Square:
 		return self.piece
 
 	def removePiece(self):
-		if self.piece is not None:
+		if self.piece:
 			self.piece.square = None
 		self.piece = None
 
@@ -29,32 +32,26 @@ class Board:
 		self.moves = [] if moves is None else moves
 		self.positions = [] if positions is None else positions
 		if squares is None and pieces is None:
-			self._makeSquares()
-			self._initPieces()
+			self.makeSquares()
+			self.initPieces()
 		else:
 			self.squares = squares
 			self.pieces = pieces
 
-	def _initPieces(self):
-		self.pieces = {'white':[], 'black':[], 'king':{}}
-		rowColors = {'white':{'piece':1,'pawn':2},'black':{'piece':8,'pawn':7}}
-		nameOrder = ['rook','knight','bishop','queen',
-					  'king','bishop','knight','rook']
+	def initPieces(self):
+		self.pieces = {color:{name:[] for name in name_dict} for color in colors}
 		for name,column in zip(nameOrder,[chr(i) for i in range(97,105)]):
 			for color in rowColors:
-				self._makePiece('pawn',color,(column,rowColors[color]['pawn']))
-				self._makePiece(name,color,(column,rowColors[color]['piece']))
+				self.makePiece('pawn',color,(column,rowColors[color]['pawn']))
+				self.makePiece(name,color,(column,rowColors[color]['piece']))
 		self.positions.append(self.getPosition())
 
-	def _makePiece(self,name,color,loc):
+	def makePiece(self,name,color,loc):
 		piece = name_dict[name](color,self.squares[loc])
-		self.pieces[color].append(piece)
+		self.pieces[color][name].append(piece)
 		self.squares[loc].piece = piece
-		self.pieces[piece] = loc
-		if piece.name == 'king':
-			self.pieces['king'][piece.color] = piece
 
-	def _makeSquares(self):
+	def makeSquares(self):
 		self.squares = {}
 		for row in range(1,9):
 			for column in [chr(i) for i in range(97,105)]:
@@ -71,23 +68,33 @@ class Board:
 	def movePiece(self,piece,loc):
 		if self.squares[loc].piece:
 			self.takePiece(self.squares[loc].piece)
+		self.squares[piece.square.loc].piece = None
 		self.squares[loc].piece = piece
 		piece.move(self,self.squares[loc])
 
-	def takePiece(self,piece):
-		self.pieces[piece.color].remove(piece)
+	def getPieces(self,color=None):
+		return (self._getPieces(color) if color else 
+				[piece for color in colors for piece in self._getPieces(color)])
 
-	def getKing(self,color):
-		return self.pieces['king'][color]
+	def _getPieces(self,color):
+		pieces = []
+		for name in self.pieces[color]:
+			pieces += self.pieces[color][name]
+		return pieces
+
+	def takePiece(self,piece):
+		self.pieces[piece.color][piece.name].remove(piece)
+
+	def getKingLoc(self,color):
+		return self.pieces[color]['king'][0].square.loc
 
 	def getMoves(self,piece):
 		return self.checkCheck(piece,piece.getMoves(self))
 
 	def getPosition(self):
 		position = {}
-		for color in colors:
-			for piece in self.pieces[color]:
-				position[piece] = piece.square.loc
+		for piece in self.getPieces():
+			position[piece] = piece.square.loc
 		return position
 
 	def setPosition(self,position):
@@ -95,35 +102,34 @@ class Board:
 			self.squares[loc].piece = None
 		for piece in position:
 			self.squares[position[piece]].piece = piece
+			piece.square = self.squares[position[piece]]
+			if not piece in self.pieces[piece.color][piece.name]: # if it was taken in simulation
+				self.pieces[piece.color][piece.name].append(piece)
 
 	def checkCheck(self,piece,moves):
 		position = self.getPosition()
 		color = piece.color
 		other_color = oppositeColor(piece.color)
 		for loc in moves.copy():
-			self.squares[piece.square.loc].piece = None
-			self.squares[loc].piece = piece # just changing position
-			for other_piece in self.pieces[other_color]:
-				king_loc = loc if piece.name == 'king' else self.getKing(color).square.loc
-				if (loc in moves and king_loc in other_piece.getMoves(self) and
-					loc != other_piece.square.loc):
-					moves.remove(loc)
+			self.movePiece(piece,loc)
+			if self.inCheck(color):
+				moves.remove(loc)
 			self.setPosition(position)
 		return moves
 
 	def checkCheckMate(self):
 		color = int2color(self.move) # potentially checkmated player's turn
 		moves = []
-		for piece in self.pieces[color]:
+		for piece in self.getPieces(color):
 			if len(self.getMoves(piece)) > 0:
 				return False
 		return 'Check Mate %s' %(oppositeColor(color)) if self.inCheck(color) else 'Draw'
 
 	def inCheck(self,color):
 		other_color = oppositeColor(color)
-		for piece in self.pieces[other_color]:
+		for piece in self.getPieces(other_color):
 			if (piece.name != 'king' and  # king can't give check
-				self.getKing(color).square.loc in piece.getMoves(self)):
+				self.getKingLoc(color) in piece.getMoves(self)):
 				return True
 		return False
 
@@ -136,9 +142,8 @@ class Board:
 			square.rect = canvas.create_rectangle(ss*column,ss*row,ss*column+ss,ss*row+ss,
 												  outline='black',fill=square.color,
 												  tag='board')
-		for color in colors:
-			for piece in self.pieces[color]:
-				piece.draw(canvas,ss)	
+		for piece in self.getPieces():
+			piece.draw(canvas,ss)	
 		canvas.lower('board')					
 
 

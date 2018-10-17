@@ -1,4 +1,7 @@
 colors = ['white','black']
+rowColors = {'white':{'piece':1,'pawn':2},'black':{'piece':8,'pawn':7}}
+nameOrder = ['rook','knight','bishop','queen',
+			  'king','bishop','knight','rook']
 
 def color2int(color):
 	if not color in ['white','black']:
@@ -42,12 +45,6 @@ def loc2int(column,row):
 
 def int2loc(x,y):
 	return chr(x+97),8-y
-
-def makePiece(name,color,loc):
-	if name in name_dict:
-		return name_dict[name](color,loc)
-	else:
-		raise ValueError('Unrecognized Piece')
 
 def isPawnStartingRow(color,loc):
 	column,row = loc

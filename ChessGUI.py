@@ -1,7 +1,6 @@
 from tkinter import Tk, Canvas, Frame
 from Board import Board, name_dict
-from func import (oppositeColor, color2int, int2color, moveloc, loc2int, int2loc,
-				  makePiece, isPawnStartingRow, isLastRank, colors)
+from func import oppositeColor, int2loc, int2color, isLastRank
 from PIL import ImageGrab
 
 class ChessGui(Frame):

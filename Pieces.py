@@ -1,5 +1,4 @@
-from func import (oppositeColor, color2int, int2color, moveloc, loc2int, int2loc,
-				  makePiece, isPawnStartingRow, isLastRank, colors)
+from func import oppositeColor, color2int, moveloc, loc2int, isPawnStartingRow
 
 class Piece(object):
 
