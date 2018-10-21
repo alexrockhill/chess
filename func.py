@@ -3,6 +3,13 @@ rowColors = {'white':{'piece':1,'pawn':2},'black':{'piece':8,'pawn':7}}
 nameOrder = ['rook','knight','bishop','queen',
 			  'king','bishop','knight','rook']
 
+piece_values = {'pawn':1,'knight':3,'bishop':3,'rook':5,'queen':9,'king':0}
+
+def pieceValues(name):
+	if name in piece_values:
+		return piece_values[name]
+	raise ValueError('Name not recognized')
+
 def color2int(color):
 	if not color in ['white','black']:
 		raise ValueError('Unrecognized color')

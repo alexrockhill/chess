@@ -1,4 +1,4 @@
-from func import oppositeColor, color2int, moveloc, loc2int, isPawnStartingRow
+from func import oppositeColor, color2int, moveloc, loc2int, isPawnStartingRow, pieceValues
 
 class Piece(object):
 
@@ -9,6 +9,7 @@ class Piece(object):
 		self.doubleAdvance = doubleAdvance
 		self.moved = moved
 		self.display = display
+		self.value = pieceValues(name)
 
 	def getDirectionMoves(self,board,directions,oneMove=False):
 		moves = []
@@ -198,7 +199,4 @@ class King(Piece):
 				  [0.45,0.9,0.4,0.9,0.4,0.85,0.45,0.85,0.45,0.75] +
 				  [0.4,0.75,0.3,0.75,0.3,0.55,0.35,0.35])
 		super().draw(canvas,ss,coords)
-
-name_dict = {'pawn':Pawn,'rook':Rook,'knight':Knight,
-			 'bishop':Bishop,'queen':Queen,'king':King}
 
