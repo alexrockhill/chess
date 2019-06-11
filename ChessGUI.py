@@ -1,14 +1,15 @@
-from tkinter import Tk, Canvas, Frame
-from Board import Board, name_dict
+from tkinter import Tk, Canvas, Frame, simpledialog, messagebox
+from Board import Board
 from func import oppositeColor, int2loc, int2color, isLastRank
 from PIL import ImageGrab
+import time
 
 class ChessGui(Frame):
 
 	def __init__(self, root):
 		self.root = root
 		Frame.__init__(self, self.root)
-		self.board = Board()
+		self.board = Board(ai={'white': 'AI', 'black': 'AI'})
 		width = self.root.winfo_screenwidth()
 		height = self.root.winfo_screenheight()
 		self.size = min([height,width])
@@ -21,6 +22,11 @@ class ChessGui(Frame):
 		self.canvas.tag_bind('piece', '<ButtonPress-1>', self.on_piece_press)
 		self.canvas.tag_bind('piece', '<ButtonRelease-1>', self.on_piece_release)
 		self.canvas.tag_bind('piece', '<B1-Motion>', self.on_piece_motion)
+
+		while self.board.checkGetAI():
+			self.board.draw(self.canvas,self.squareSize)
+			self.root.update()
+			time.sleep(1)
 
 		'''self.canvas.update()
 		x = root.winfo_rootx()
@@ -75,20 +81,27 @@ class ChessGui(Frame):
 					isLastRank(self.loc2piece().color,square.loc)):
 					name = None
 					while name is None:
-						name = input('What to promote pawn to?\t').lower()
-						if name in name_dict and not name in ['pawn','king']:
-							self.board._makePiece(name,self.loc2piece().color,
+						name = simpledialog.askstring('Pawn Promotion',
+													  'What to promote pawn to?\n' +
+													  '(queen, knight, bishop or rook)',
+                                                      parent=self.root)
+						if name in Board.name_dict and not name in ['pawn','king']:
+							piece = square.getPiece()
+							self.canvas.delete(piece)  # remove pawn
+							self.board.takePiece(piece)
+							self.board.makePiece(name,self.loc2piece().color,
 												  square.loc)
-
 						else:
 							name = None
 				outcome = self.board.checkCheckMate()
 				if outcome:
-					print(outcome)
+					messagebox.showinfo('Game Over',outcome)
 					self.board.move = None
+			self.board.checkGetAI()
 			self.board.draw(self.canvas,self.squareSize)
 			self._drag_data['piece_loc'] = None
 			self._drag_data['loc'] = (0,0)
+
 
 	def on_piece_motion(self,event):
 		if self._drag_data['piece_loc'] is not None:

@@ -1,8 +1,6 @@
 from Pieces import Pawn, Rook, Knight, Bishop, Queen, King
 from func import (oppositeColor, int2color, loc2int, colors, nameOrder, rowColors)
-
-name_dict = {'pawn':Pawn,'rook':Rook,'knight':Knight,
-			 'bishop':Bishop,'queen':Queen,'king':King}
+from importlib import import_module
 
 class Square:
 
@@ -27,8 +25,12 @@ class Square:
 
 class Board:
 
-	def __init__(self,move=0,moves=None,positions=None,squares=None,pieces=None):
-		self.move = move #white even, black odd
+	name_dict = {'pawn':Pawn,'rook':Rook,'knight':Knight,
+			 'bishop':Bishop,'queen':Queen,'king':King}
+
+	def __init__(self,move=0,moves=None,positions=None,squares=None,pieces=None,
+				 ai=None):
+		self.move = move  #white even, black odd
 		self.moves = [] if moves is None else moves
 		self.positions = [] if positions is None else positions
 		if squares is None and pieces is None:
@@ -37,9 +39,10 @@ class Board:
 		else:
 			self.squares = squares
 			self.pieces = pieces
+		self.ai = None if ai is None else {color: import_module(ai[color]).AI(color) for color in ai}
 
 	def initPieces(self):
-		self.pieces = {color:{name:[] for name in name_dict} for color in colors}
+		self.pieces = {color:{name:[] for name in self.name_dict} for color in colors}
 		for name,column in zip(nameOrder,[chr(i) for i in range(97,105)]):
 			for color in rowColors:
 				self.makePiece('pawn',color,(column,rowColors[color]['pawn']))
@@ -47,7 +50,7 @@ class Board:
 		self.positions.append(self.getPosition())
 
 	def makePiece(self,name,color,loc):
-		piece = name_dict[name](color,self.squares[loc])
+		piece = self.name_dict[name](color,self.squares[loc])
 		self.pieces[color][name].append(piece)
 		self.squares[loc].piece = piece
 
@@ -144,7 +147,13 @@ class Board:
 												  tag='board')
 		for piece in self.getPieces():
 			piece.draw(canvas,ss)	
-		canvas.lower('board')					
+		canvas.lower('board')
+
+	def checkGetAI(self):
+		if int2color(self.move) in self.ai:
+			self.ai[int2color(self.move)].make_decision(self)
+			return True
+		return False
 
 
 

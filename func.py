@@ -16,7 +16,7 @@ def color2int(color):
 	return (color == 'white') - (color == 'black')
 
 def int2color(i):
-	return 'black' if i%2 else 'white'
+	return 'black' if i % 2 else 'white'
 
 def moveloc(loc,direction):
 	column,row = loc
