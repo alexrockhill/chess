@@ -64,7 +64,7 @@ class Board:
 
 	def makeMove(self,piece,loc):
 		self.move += 1
-		self.moves.append((piece.name,loc))
+		self.moves.append((piece,loc))
 		self.positions.append(self.getPosition())
 		self.movePiece(piece,loc)
 
@@ -157,11 +157,17 @@ class Board:
 			piece.draw(canvas,ss)	
 		canvas.lower('board')
 
-	def checkGetAI(self):
-		if int2color(self.move) in self.ai:
-			self.ai[int2color(self.move)].make_decision(self)
-			return True
-		return False
+	def makeAIMove(self):
+		self.ai[int2color(self.move)].make_decision(self)
+
+	def isAITurn(self):
+		return int2color(self.move) in self.ai
+
+	def wasAITurn(self):
+		return int2color(self.move - 1) in self.ai
+
+	def getAIPromotion(self):
+		return self.ai[int2color(self.move)].get_promotion(self, loc)
 
 
 

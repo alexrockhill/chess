@@ -22,6 +22,10 @@ class AI:
 		piece, move = activity_mat2move(output_activity_mat, board, board.pieces[self.color])
 		board.makeMove(piece, move)
 
+	def get_promotion(self, board, loc):
+		output_activity_mat = layer2activity_mat(self.network.output_layer)
+		return activity_mat2promotion(output_activity_mat, loc)
+
 
 class Node:
 
@@ -172,6 +176,12 @@ def activity_mat2move(activity_mat, board, pieces):
 					best_score = move_score - stay_score
 					best_move = (piece, move)
 	return best_move
+
+
+def activity_mat2promotion(activity_mat, loc):
+	column, row = loc
+	column, row = loc2int(column, row)
+	return Network.piece_dict[np.argmax(activity_mat[:, column, row])]
 
 
 if __name__ == '__main__':

@@ -9,11 +9,11 @@ class ChessGui(Frame):
 	def __init__(self, root):
 		self.root = root
 		Frame.__init__(self, self.root)
-		self.board = Board(ai={'white': 'AI', 'black': 'AI'})
+		self.board = Board(ai={'black': 'AI'}) # 'white': 'AI', 
 		width = self.root.winfo_screenwidth()
 		height = self.root.winfo_screenheight()
 		self.size = min([height,width])
-		self.canvas = Canvas(self.root,width=self.size,height=self.size)
+		self.canvas = Canvas(self.root, width=self.size, height=self.size)
 		self.squareSize = 0.75*min([height,width])/8
 		self.board.draw(self.canvas,self.squareSize)
 		self.canvas.pack(fill='both', expand=True)
@@ -23,7 +23,8 @@ class ChessGui(Frame):
 		self.canvas.tag_bind('piece', '<ButtonRelease-1>', self.on_piece_release)
 		self.canvas.tag_bind('piece', '<B1-Motion>', self.on_piece_motion)
 
-		while self.board.move is not None and self.board.checkGetAI():
+		while self.board.move is not None and self.board.isAITurn():
+			self.board.makeAIMove()
 			self.board.draw(self.canvas,self.squareSize)
 			self.root.update()
 			time.sleep(1)
@@ -77,37 +78,41 @@ class ChessGui(Frame):
 					self.canvas.delete(piece.display)
 				self.board.makeMove(self.loc2piece(),square.loc)
 				self._drag_data['piece_loc'] = square.loc
-				if (self.loc2piece().name == 'pawn' and 
-					isLastRank(self.loc2piece().color,square.loc)):
-					name = None
-					while name is None:
-						name = simpledialog.askstring('Pawn Promotion',
-													  'What to promote pawn to?\n' +
-													  '(queen, knight, bishop or rook)',
-                                                      parent=self.root)
-						if name in Board.name_dict and not name in ['pawn','king']:
-							piece = square.getPiece()
-							self.canvas.delete(piece)  # remove pawn
-							self.board.takePiece(piece)
-							self.board.makePiece(name,self.loc2piece().color,
-												  square.loc)
-						else:
-							name = None
-				outcome = self.board.checkCheckMate()
-				if outcome:
-					messagebox.showinfo('Game Over', outcome)
-					self.board.move = None
-			self.board.checkGetAI()
+				self.checkPromotionOrGameEnd()
+			if self.board.move is not None and self.board.isAITurn():
+				self.board.makeAIMove()
 			self.board.draw(self.canvas,self.squareSize)
 			self._drag_data['piece_loc'] = None
 			self._drag_data['loc'] = (0,0)
 
 
-	def on_piece_motion(self,event):
+	def on_piece_motion(self, event):
 		if self._drag_data['piece_loc'] is not None:
 			x,y = self._drag_data['loc']
 			self.canvas.move(self.loc2piece().display,event.x-x,event.y-y)
 			self._drag_data['loc'] = (event.x,event.y)
+
+	def checkPromotionOrGameEnd(self):
+		piece, loc = self.board.moves[-1]
+		if piece.name == 'pawn' and isLastRank(int2color(self.board.move - 1), loc):
+			if self.board.wasAITurn():
+				name = self.board.getAIPromotion(loc)
+			else:
+				name = None
+				while name is None:
+					name = simpledialog.askstring('Pawn Promotion',
+												  'What to promote pawn to?\n' +
+												  '(queen, knight, bishop or rook)',
+												   parent=self.root)
+					if name not in Board.name_dict or  name in ['pawn', 'king']:
+						name = None
+			self.canvas.delete(piece)  # remove pawn
+			self.board.takePiece(piece)
+			self.board.makePiece(name, piece.color, loc)
+		outcome = self.board.checkCheckMate()
+		if outcome:
+			messagebox.showinfo('Game Over', outcome)
+			self.board.move = None
 		
 if __name__ == '__main__':
 	root = Tk()
