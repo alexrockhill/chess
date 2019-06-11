@@ -23,7 +23,7 @@ class ChessGui(Frame):
 		self.canvas.tag_bind('piece', '<ButtonRelease-1>', self.on_piece_release)
 		self.canvas.tag_bind('piece', '<B1-Motion>', self.on_piece_motion)
 
-		while self.board.checkGetAI():
+		while self.board.move is not None and self.board.checkGetAI():
 			self.board.draw(self.canvas,self.squareSize)
 			self.root.update()
 			time.sleep(1)
@@ -95,7 +95,7 @@ class ChessGui(Frame):
 							name = None
 				outcome = self.board.checkCheckMate()
 				if outcome:
-					messagebox.showinfo('Game Over',outcome)
+					messagebox.showinfo('Game Over', outcome)
 					self.board.move = None
 			self.board.checkGetAI()
 			self.board.draw(self.canvas,self.squareSize)

@@ -3,7 +3,7 @@ import os.path as op
 import matplotlib.pyplot as plt
 import time
 import pickle
-from func import oppositeColor, int2loc, int2color, isLastRank
+from func import oppositeColor, loc2int, int2loc, int2color, isLastRank
 
 def logistic(x):
 	return 1. / (1 + np.exp(-x))
@@ -11,16 +11,15 @@ def logistic(x):
 
 class AI:
 
-	def __init__(self, color):
+	def __init__(self, color, name='rocknet', show=True):
 		self.color = color
+		self.network = Network(name=name, show=show)
 
 	def make_decision(self, board):
-		move, i = None, 0
-		while move is None:
-			piece = board.getPieces(self.color)[i]
-			moves = board.getMoves(piece)
-			if moves:
-				move = moves[0]
+		activity_mat = pieces2activity_mat(board.pieces[self.color])
+		self.network.propagate(activity_mat)
+		output_activity_mat = layer2activity_mat(self.network.output_layer)
+		piece, move = activity_mat2move(output_activity_mat, board, board.pieces[self.color])
 		board.makeMove(piece, move)
 
 
@@ -40,8 +39,12 @@ class Node:
 
 class Network:
 
-	def __init__(self, name='rocknet', seed=12, show=True, input_dim=(5, 8, 8), output_dim=(5, 8, 8), 
-				 hidden_dims=[(5, 16, 16), (5, 32, 32), (5, 64, 64), (5, 32, 32), (5, 16, 16)]):
+	piece_dict = {'pawn': 0, 'rook': 1, 'knight': 2, 'bishop': 3,
+				  'queen': 4, 'king': 5}
+	board_dim = 8
+
+	def __init__(self, name='rocknet', seed=12, show=True, 
+				 hidden_dims=[2]):
 		np.random.seed(seed)
 		if op.isfile(name + '.pkl'):
 			with open(name + '.pkl', 'rb') as f:
@@ -49,21 +52,28 @@ class Network:
 		else:
 			self.name = name
 			self.show = show
-			self.input_layer = self.make_layer(input_dim)
+			base_dim = (len(self.piece_dict), self.board_dim, self.board_dim)
+			self.input_layer = self.make_layer(base_dim)
+			print('input')
 			self.hidden_layers = []
 			if hidden_dims:
-				hidden_layer = self.make_layer(hidden_dims[0])
+				hidden_layer = self.make_layer(
+					tuple([int(dim*hidden_dims[0]) if i > 0 else dim for i, dim in enumerate(base_dim)]))
 				self.connect_layers(self.input_layer, hidden_layer)
 				self.hidden_layers.append(hidden_layer)
+				print('hidden')
 				for i, hidden_dim in enumerate(hidden_dims[1:]):
-					hidden_layer = self.make_layer(hidden_dims[-1])
+					hidden_layer = self.make_layer(
+						tuple([int(dim*hidden_dim) if i > 0 else dim for i, dim in enumerate(base_dim)]))
 					if i < len(hidden_dims) - 1:
 						self.connect_layers(self.hidden_layers[-1], hidden_layer)
 					self.hidden_layers.append(hidden_layer)
-				self.output_layer = self.make_layer(output_dim)
+					print('hidden')
+				self.output_layer = self.make_layer(base_dim)
+				print('output')
 				self.connect_layers(hidden_layer, self.output_layer)
 			else:
-				self.output_layer = self.make_layer(output_dim)
+				self.output_layer = self.make_layer(base_dim)
 				self.connect_layers(self.input_layer, self.output_layer)
 
 
@@ -82,7 +92,7 @@ class Network:
 
 	def save(self):
 		with open(self.name + '.pkl', 'wb') as f:
-			pickle.dumps(self, f)
+			pickle.dump(self, f)
 
 
 	def propagate(self, input_activity):
@@ -129,10 +139,50 @@ class Network:
 			ax.imshow(activity_mat.reshape(layer.shape[1:]))
 
 
+def pieces2activity_mat(pieces):
+	activity_mat = np.zeros((len(Network.piece_dict), Network.board_dim, Network.board_dim))
+	for name in pieces:
+		for piece in pieces[name]:
+			column, row = piece.square.loc
+			column, row = loc2int(column, row)
+			activity_mat[Network.piece_dict[piece.name], column, row] = 1
+	return activity_mat
+
+
+def layer2activity_mat(layer):
+	base_dim = (len(Network.piece_dict), Network.board_dim, Network.board_dim)
+	activity_mat = np.zeros(base_dim).flatten()
+	for i, node in enumerate(layer.flatten()):
+		activity_mat[i] = node.activity
+	return activity_mat.reshape(base_dim)
+
+
+def activity_mat2move(activity_mat, board, pieces):
+	best_move, best_score = None, -1
+	for name in pieces:
+		for piece in pieces[name]:
+			column, row = piece.square.loc
+			column, row = loc2int(column, row)
+			stay_score = activity_mat[Network.piece_dict[piece.name], column, row]
+			for move in board.getMoves(piece):
+				column, row = move
+				column, row = loc2int(column, row)
+				move_score = activity_mat[Network.piece_dict[piece.name], column, row]
+				if move_score - stay_score > best_score:
+					best_score = move_score - stay_score
+					best_move = (piece, move)
+	return best_move
+
+
 if __name__ == '__main__':
+	from AI import AI
+	from Board import Board
+	board = Board()
+	ai = AI()
+	ai.make_decision
 	from AI import Network
 	import numpy as np
 	self = Network()
-	self.propagate(np.random.random((5, 8, 8)))
-
+	self.propagate(np.random.random((6, 8, 8)))
+	
 

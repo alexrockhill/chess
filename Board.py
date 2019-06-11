@@ -39,7 +39,7 @@ class Board:
 		else:
 			self.squares = squares
 			self.pieces = pieces
-		self.ai = None if ai is None else {color: import_module(ai[color]).AI(color) for color in ai}
+		self.ai = None if ai is None else {color: import_module(ai[color]).AI(color, show=False) for color in ai}
 
 	def initPieces(self):
 		self.pieces = {color:{name:[] for name in self.name_dict} for color in colors}
@@ -121,12 +121,20 @@ class Board:
 		return moves
 
 	def checkCheckMate(self):
+		if self.checkRepeatedMoves():
+			return 'Draw'
 		color = int2color(self.move) # potentially checkmated player's turn
 		moves = []
 		for piece in self.getPieces(color):
 			if len(self.getMoves(piece)) > 0:
 				return False
-		return 'Check Mate %s' %(oppositeColor(color)) if self.inCheck(color) else 'Draw'
+		return 'Check Mate %s' % oppositeColor(color) if self.inCheck(color) else 'Draw'
+
+	def checkRepeatedMoves(self):
+		if len(self.positions) > 3:
+			if self.positions[-1] == self.positions[-3] and self.positions[-2] == self.positions[-4]:
+				return True
+		return False
 
 	def inCheck(self,color):
 		other_color = oppositeColor(color)
@@ -141,7 +149,7 @@ class Board:
 		for loc in self.squares:
 			square = self.squares[loc]
 			column,row = loc
-			column,row = loc2int(column,row)
+			column,row = loc2int(column, row)
 			square.rect = canvas.create_rectangle(ss*column,ss*row,ss*column+ss,ss*row+ss,
 												  outline='black',fill=square.color,
 												  tag='board')

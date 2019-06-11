@@ -66,8 +66,9 @@ class Pawn(Piece):
 		if advanceloc in board.squares and not board.squares[advanceloc].hasPiece():
 			moves.append(advanceloc)
 		if isPawnStartingRow(self.color,self.square.loc):
-			advanceloc2 = (column,row+colorint*2)
-			if not board.squares[advanceloc2].hasPiece():
+			advanceloc2 = (column, row+colorint*2)
+			if not (board.squares[advanceloc2].hasPiece() or
+					board.squares[advanceloc].hasPiece()):
 				moves.append(advanceloc2)			
 		return moves
 
