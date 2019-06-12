@@ -1,5 +1,6 @@
 from tkinter import Tk, Canvas, Frame, simpledialog, messagebox
 from Board import Board
+from AI import AI
 from func import oppositeColor, int2loc, int2color, isLastRank
 from PIL import ImageGrab
 import time
@@ -9,7 +10,7 @@ class ChessGui(Frame):
 	def __init__(self, root):
 		self.root = root
 		Frame.__init__(self, self.root)
-		self.board = Board(ai={'black': 'AI'}) # 'white': 'AI', 
+		self.board = Board() 
 		width = self.root.winfo_screenwidth()
 		height = self.root.winfo_screenheight()
 		self.size = min([height,width])
@@ -22,10 +23,12 @@ class ChessGui(Frame):
 		self.canvas.tag_bind('piece', '<ButtonPress-1>', self.on_piece_press)
 		self.canvas.tag_bind('piece', '<ButtonRelease-1>', self.on_piece_release)
 		self.canvas.tag_bind('piece', '<B1-Motion>', self.on_piece_motion)
+		self.ai = {color: AI(color, show=False) for color in ['white', 'black']}
 
-		while self.board.move is not None and self.board.isAITurn():
-			self.board.makeAIMove()
-			self.board.draw(self.canvas,self.squareSize)
+		while self.board.move is not None and self.isAITurn():
+			self.makeAIMove()
+			self.checkPromotionOrGameEnd()
+			self.board.draw(self.canvas, self.squareSize)
 			self.root.update()
 			time.sleep(1)
 
@@ -34,8 +37,26 @@ class ChessGui(Frame):
 		y = root.winfo_rooty()
 		ImageGrab.grab((x,y,x+self.size*1.7,y+self.size*1.7)).save('example.jpg')'''
 
+
+	def makeAIMove(self):
+		self.ai[int2color(self.board.move)].make_decision(self.board)
+
+
+	def isAITurn(self):
+		return self.ai is not None and int2color(self.board.move) in self.ai
+
+
+	def wasAITurn(self):
+		return self.ai is not None and int2color(self.board.move - 1) in self.ai
+
+
+	def getAIPromotion(self):
+		return self.ai[int2color(self.board.move)].get_promotion(self.board, loc)
+
+
 	def loc2piece(self):
 		return self.board.squares[self._drag_data['piece_loc']].getPiece()
+
 
 	def _find_square_loc(self,loc):
 		x,y = loc
@@ -43,9 +64,10 @@ class ChessGui(Frame):
 		y = int(round((y-self.squareSize/2)/self.squareSize))
 		loc = int2loc(x,y)
 		square = self.board.squares[loc]
-		x1,y1,x2,y2 = self.canvas.coords(square.rect)
-		x,y = (x1+x2)/2,(y1+y2)/2
-		return square,(x,y)
+		x1, y1, x2, y2 = self.canvas.coords(square.rect)
+		x, y = (x1 + x2) / 2, (y1 + y2) / 2
+		return square, (x, y)
+
 
 	def on_piece_press(self, event):
 		item = self.canvas.find_closest(event.x,event.y)[0]
@@ -60,6 +82,7 @@ class ChessGui(Frame):
 				self._drag_data['loc_offset'] = (x-event.x,y-event.y)
 				self._drag_data['piece_loc'] = piece.square.loc
 				self.canvas.lift(piece.display)
+
 
 	def on_piece_release(self, event):
 		if self._drag_data['piece_loc'] is not None:
@@ -79,8 +102,8 @@ class ChessGui(Frame):
 				self.board.makeMove(self.loc2piece(),square.loc)
 				self._drag_data['piece_loc'] = square.loc
 				self.checkPromotionOrGameEnd()
-			if self.board.move is not None and self.board.isAITurn():
-				self.board.makeAIMove()
+			if self.board.move is not None and self.isAITurn():
+				self.makeAIMove()
 			self.board.draw(self.canvas,self.squareSize)
 			self._drag_data['piece_loc'] = None
 			self._drag_data['loc'] = (0,0)
@@ -92,11 +115,12 @@ class ChessGui(Frame):
 			self.canvas.move(self.loc2piece().display,event.x-x,event.y-y)
 			self._drag_data['loc'] = (event.x,event.y)
 
+
 	def checkPromotionOrGameEnd(self):
 		piece, loc = self.board.moves[-1]
 		if piece.name == 'pawn' and isLastRank(int2color(self.board.move - 1), loc):
 			if self.board.wasAITurn():
-				name = self.board.getAIPromotion(loc)
+				name = self.getAIPromotion(loc)
 			else:
 				name = None
 				while name is None:

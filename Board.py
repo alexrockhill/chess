@@ -1,6 +1,5 @@
 from Pieces import Pawn, Rook, Knight, Bishop, Queen, King
 from func import (oppositeColor, int2color, loc2int, colors, nameOrder, rowColors)
-from importlib import import_module
 
 class Square:
 
@@ -25,11 +24,13 @@ class Square:
 
 class Board:
 
-	name_dict = {'pawn':Pawn,'rook':Rook,'knight':Knight,
-			 'bishop':Bishop,'queen':Queen,'king':King}
+	name_dict = {'pawn': Pawn, 'rook': Rook, 'knight': Knight,
+			     'bishop': Bishop, 'queen': Queen, 'king': King}
 
-	def __init__(self,move=0,moves=None,positions=None,squares=None,pieces=None,
-				 ai=None):
+	score_dict = {'pawn': 1, 'rook': 5, 'knight': 3, 'bishop': 3,
+				  'queen': 9, 'king': 0}
+
+	def __init__(self, move=0, moves=None, positions=None, squares=None, pieces=None):
 		self.move = move  #white even, black odd
 		self.moves = [] if moves is None else moves
 		self.positions = [] if positions is None else positions
@@ -39,7 +40,6 @@ class Board:
 		else:
 			self.squares = squares
 			self.pieces = pieces
-		self.ai = None if ai is None else {color: import_module(ai[color]).AI(color, show=False) for color in ai}
 
 	def initPieces(self):
 		self.pieces = {color:{name:[] for name in self.name_dict} for color in colors}
@@ -62,11 +62,13 @@ class Board:
 								     not (row%2 or ord(column)%2) else 'white')
 				self.squares[(column,row)] = Square(column,row,color)
 
+
 	def makeMove(self,piece,loc):
 		self.move += 1
 		self.moves.append((piece,loc))
 		self.positions.append(self.getPosition())
 		self.movePiece(piece,loc)
+
 
 	def movePiece(self,piece,loc):
 		if self.squares[loc].piece:
@@ -75,9 +77,11 @@ class Board:
 		self.squares[loc].piece = piece
 		piece.move(self,self.squares[loc])
 
+
 	def getPieces(self,color=None):
 		return (self._getPieces(color) if color else 
 				[piece for color in colors for piece in self._getPieces(color)])
+
 
 	def _getPieces(self,color):
 		pieces = []
@@ -85,20 +89,25 @@ class Board:
 			pieces += self.pieces[color][name]
 		return pieces
 
-	def takePiece(self,piece):
+
+	def takePiece(self, piece):
 		self.pieces[piece.color][piece.name].remove(piece)
 
-	def getKingLoc(self,color):
+
+	def getKingLoc(self, color):
 		return self.pieces[color]['king'][0].square.loc
 
-	def getMoves(self,piece):
-		return self.checkCheck(piece,piece.getMoves(self))
+
+	def getMoves(self, piece):
+		return self.checkCheck(piece, piece.getMoves(self))
+
 
 	def getPosition(self):
 		position = {}
 		for piece in self.getPieces():
 			position[piece] = piece.square.loc
 		return position
+
 
 	def setPosition(self,position):
 		for loc in self.squares:
@@ -108,6 +117,7 @@ class Board:
 			piece.square = self.squares[position[piece]]
 			if not piece in self.pieces[piece.color][piece.name]: # if it was taken in simulation
 				self.pieces[piece.color][piece.name].append(piece)
+
 
 	def checkCheck(self,piece,moves):
 		position = self.getPosition()
@@ -120,6 +130,7 @@ class Board:
 			self.setPosition(position)
 		return moves
 
+
 	def checkCheckMate(self):
 		if self.checkRepeatedMoves():
 			return 'Draw'
@@ -130,11 +141,16 @@ class Board:
 				return False
 		return 'Check Mate %s' % oppositeColor(color) if self.inCheck(color) else 'Draw'
 
+
 	def checkRepeatedMoves(self):
-		if len(self.positions) > 3:
-			if self.positions[-1] == self.positions[-3] and self.positions[-2] == self.positions[-4]:
+		if len(self.positions) > 8:
+			if (all([p0 == p1 for p0, p1 in zip(self.positions[-1], self.positions[-5])]) and 
+				all([p0 == p1 for p0, p1 in zip(self.positions[-2], self.positions[-6])]) and
+				all([p0 == p1 for p0, p1 in zip(self.positions[-3], self.positions[-7])]) and
+				all([p0 == p1 for p0, p1 in zip(self.positions[-4], self.positions[-8])])):
 				return True
 		return False
+
 
 	def inCheck(self,color):
 		other_color = oppositeColor(color)
@@ -143,6 +159,7 @@ class Board:
 				self.getKingLoc(color) in piece.getMoves(self)):
 				return True
 		return False
+
 
 	def draw(self,canvas,ss):
 		canvas.delete('all')
@@ -157,17 +174,28 @@ class Board:
 			piece.draw(canvas,ss)	
 		canvas.lower('board')
 
-	def makeAIMove(self):
-		self.ai[int2color(self.move)].make_decision(self)
 
-	def isAITurn(self):
-		return int2color(self.move) in self.ai
+	def scoreKingHunt(self, color):
+		score = 0
+		opposite_king_loc = self.getKingLoc(oppositeColor(color))
+		opposite_king_moves = self.getMoves(self.pieces[oppositeColor(color)]['king'][0])
+		for name in self.pieces[color]:
+			score += len(self.pieces[color][name])*self.score_dict[name]  # Piece score
+			for piece in self.pieces[color][name]:
+				for move in self.getMoves(piece):
+					if move == opposite_king_loc and not opposite_king_moves:  # checkmate
+						score += np.inf
+					elif move in opposite_king_moves or move == opposite_king_loc:  # king pressure
+						score += 1
+		for name in self.pieces[oppositeColor(color)]:
+			score -= len(self.pieces[oppositeColor(color)][name])*self.score_dict[name]  # Opponent piece negative score
+		return score
 
-	def wasAITurn(self):
-		return int2color(self.move - 1) in self.ai
 
-	def getAIPromotion(self):
-		return self.ai[int2color(self.move)].get_promotion(self, loc)
+
+
+
+
 
 
 
