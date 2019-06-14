@@ -50,37 +50,34 @@ class Network:
 
 	piece_dict = {'pawn': 0, 'rook': 1, 'knight': 2, 'bishop': 3,
 				  'queen': 4, 'king': 5}
-	board_dim = 8
 
-	def __init__(self, name='rocknet', seed=12, delta=0.1,
-				 hidden_dims=[(16, 16)], show=True):
+	def __init__(self, layer_dims, tms, name='rock', seed=12, delta=0.1,
+				 show=True):
 		np.random.seed(seed)
 		self.name = name
-		self.delta = delta
+		self.delta = delta  # for backpropagation (depreciated)
 		self.show = show
-		input_dim = (len(self.piece_dict)*2, self.board_dim, self.board_dim)
-		output_dim = (len(self.piece_dict), self.board_dim, self.board_dim)
-		self.input_layer = self.make_layer(input_dim)
+		self.input_layer = self.make_layer(layer_dims[0])
 		print('input')
 		self.hidden_layers = []
-		if hidden_dims:
-			hidden_layer = self.make_layer(hidden_dims[0])
-			self.connect_layers(self.input_layer, hidden_layer)
+		if len(layer_dims) > 2:
+			hidden_layer = self.make_layer(layer_dims[1])
+			self.connect_layers(self.input_layer, hidden_layer, tms[0])
 			self.hidden_layers.append(hidden_layer)
 			print('hidden')
-			for i, hidden_dim in enumerate(hidden_dims[1:]):
+			for i, (hidden_dim, tm) in enumerate(zip(layer_dims[1:-1], tms[1:-1])):
 				hidden_layer = self.make_layer(hidden_dim)
-				if i < len(hidden_dims) - 1:
-					self.connect_layers(self.hidden_layers[-1], hidden_layer)
+				if i < len(layer_dims) - 1:
+					self.connect_layers(self.hidden_layers[-1], hidden_layer, tm)
 				self.hidden_layers.append(hidden_layer)
 				print('hidden')
-			self.output_layer = self.make_layer(output_dim)
+			self.output_layer = self.make_layer(layer_dims[-1])
 			print('output')
-			self.connect_layers(hidden_layer, self.output_layer)
+			self.connect_layers(hidden_layer, self.output_layer, tms[-1])
 		else:
 			self.hidden_layers = []
-			self.output_layer = self.make_layer(output_dim)
-			self.connect_layers(self.input_layer, self.output_layer)
+			self.output_layer = self.make_layer(layer_dims[-1])
+			self.connect_layers(self.input_layer, self.output_layer, tms[-1])
 
 
 	def make_layer(self, shape):
@@ -90,14 +87,15 @@ class Network:
 		return layer.reshape(shape)
 
 
-	def connect_layers(self, layer, next_layer):
-		for node in layer.flatten():
-			for next_node in next_layer.flatten():
-				node.connect(next_node, np.random.random()*2 - 1)
+	def connect_layers(self, layer, next_layer, tm):
+		tm = tm.flatten()
+		for i, node in enumerate(layer.flatten()):
+			for j, next_node in enumerate(next_layer.flatten()):
+				node.connect(next_node, tm[i * j])
 
 
 	def save(self):
-		with open(self.name + '.pkl', 'wb') as f:
+		with open(self.name + 'net.pkl', 'wb') as f:
 			pickle.dump(self, f)
 
 
@@ -155,14 +153,14 @@ class Network:
 			board = Board()
 			while board.move is not None:
 				color = int2color(board.move)
-				activity_mat = pieces2activity_mat(board.pieces[color], board.pieces[oppositeColor(color)])
+				activity_mat = self.pieces2activity_mat(board.pieces[color], board.pieces[oppositeColor(color)])
 				self.propagate(activity_mat)
-				output_activity_mat = layer2activity_mat(self.output_layer)
-				piece, move = activity_mat2move(output_activity_mat, board, board.pieces[color])
+				output_activity_mat = self.layer2activity_mat(self.output_layer)
+				piece, move = self.activity_mat2move(output_activity_mat, board, board.pieces[color])
 				print(piece.name, piece.square.loc, move)
 				board.makeMove(piece, move)
 				score = board.scoreKingHunt(color)
-				output_loc = piece2output_layer(piece)
+				output_loc = self.piece2output_layer(piece)
 				self.back_propagate(self.output_layer[output_loc], score, 0)
 
 
@@ -179,16 +177,16 @@ class Network:
 
 
 	def make_decision(self, board, color):
-		activity_mat = pieces2activity_mat(board.pieces[color], board.pieces[oppositeColor(color)])
+		activity_mat = self.pieces2activity_mat(board.pieces[color], board.pieces[oppositeColor(color)])
 		self.propagate(activity_mat)
-		output_activity_mat = layer2activity_mat(self.output_layer)
-		piece, move = activity_mat2move(output_activity_mat, board, board.pieces[color])
+		output_activity_mat = self.layer2activity_mat(self.output_layer)
+		piece, move = self.activity_mat2move(output_activity_mat, board, board.pieces[color])
 		board.makeMove(piece, move)
 
 
 	def get_promotion(self, board, loc):
-		output_activity_mat = layer2activity_mat(self.output_layer)
-		return activity_mat2promotion(output_activity_mat, loc)
+		output_activity_mat = self.layer2activity_mat(self.output_layer)
+		return self.activity_mat2promotion(output_activity_mat, loc)
 
 
 	def check_promotion_or_game_end(self, board):
@@ -203,61 +201,133 @@ class Network:
 			board.move = None
 
 
-def pieces2activity_mat(my_pieces, other_pieces):
-	activity_mat = np.zeros((len(Network.piece_dict)*2, Network.board_dim, Network.board_dim))
-	for i, pieces in enumerate([my_pieces, other_pieces]):
+	def pieces2activity_mat(self, my_pieces, other_pieces):
+		activity_mat = np.zeros(self.input_layer.shape)
+		for i, pieces in enumerate([my_pieces, other_pieces]):
+			for name in pieces:
+				for piece in pieces[name]:
+					column, row = piece.square.loc
+					column, row = loc2int(column, row)
+					activity_mat[self.output_layer.shape[0] + i*self.output_layer.shape[0], column, row] = 1  # output_layer.shape == n_pieces
+		return activity_mat
+
+
+	def layer2activity_mat(self, layer):
+		activity_mat = np.zeros(layer.shape).flatten()
+		for i, node in enumerate(layer.flatten()):
+			activity_mat[i] = node.activity
+		return activity_mat.reshape(layer.shape)
+
+
+	def activity_mat2move(self, activity_mat, board, pieces):
+		best_move, best_score = None, -1
 		for name in pieces:
 			for piece in pieces[name]:
 				column, row = piece.square.loc
 				column, row = loc2int(column, row)
-				activity_mat[Network.piece_dict[piece.name] + i*len(Network.piece_dict), column, row] = 1
-	return activity_mat
+				stay_score = activity_mat[self.piece_dict[piece.name], column, row]
+				for move in board.getMoves(piece):
+					column, row = move
+					column, row = loc2int(column, row)
+					move_score = activity_mat[self.piece_dict[piece.name], column, row]
+					if move_score - stay_score > best_score:
+						best_score = move_score - stay_score
+						best_move = (piece, move)
+		return best_move
 
 
-def layer2activity_mat(layer):
-	base_dim = (len(Network.piece_dict), Network.board_dim, Network.board_dim)
-	activity_mat = np.zeros(base_dim).flatten()
-	for i, node in enumerate(layer.flatten()):
-		activity_mat[i] = node.activity
-	return activity_mat.reshape(base_dim)
+	def activity_mat2promotion(self, activity_mat, loc):
+		column, row = loc
+		column, row = loc2int(column, row)
+		return self.piece_dict[np.argmax(activity_mat[:, column, row])]
 
 
-def activity_mat2move(activity_mat, board, pieces):
-	best_move, best_score = None, -1
-	for name in pieces:
-		for piece in pieces[name]:
-			column, row = piece.square.loc
-			column, row = loc2int(column, row)
-			stay_score = activity_mat[Network.piece_dict[piece.name], column, row]
-			for move in board.getMoves(piece):
-				column, row = move
-				column, row = loc2int(column, row)
-				move_score = activity_mat[Network.piece_dict[piece.name], column, row]
-				if move_score - stay_score > best_score:
-					best_score = move_score - stay_score
-					best_move = (piece, move)
-	return best_move
-
-
-def activity_mat2promotion(activity_mat, loc):
-	column, row = loc
-	column, row = loc2int(column, row)
-	return Network.piece_dict[np.argmax(activity_mat[:, column, row])]
-
-
-def piece2output_layer(piece):
-	column, row = piece.square.loc
-	column, row = loc2int(column, row)
-	return (Network.piece_dict[piece.name], column, row)
+	def piece2output_layer(self, piece):
+		column, row = piece.square.loc
+		column, row = loc2int(column, row)
+		return (self.piece_dict[piece.name], column, row)
 
 
 def load_network(name):
-	if op.isfile(name + '.pkl'):
-		with open(name + '.pkl', 'rb') as f:
+	if op.isfile(name + 'net.pkl'):
+		with open(name + 'net.pkl', 'rb') as f:
 			network = pickle.load(f)
 	else:
 		raise ValueError('%s network does not exist' % name)
 	return network
+
+
+class Genome:
+
+	DEPTH = 8
+	LENGTH = int(1e6)
+	MAX_LAYERS = 10
+	MAX_DIMS = 5
+	BOARD_DIM = 8
+	N_PIECES = 6
+
+	def __init__(self, name='rock', seed=11):
+		'''
+		name: String
+			for versioning
+		genome: String 'random' or 'load'
+			'random' generates a new genome, 'load' loads previously trained genome
+		seed: int
+			seed for numpy random number generator
+		'''
+		np.random.seed(seed)
+		self.name = name
+		self.i = 0
+		if op.isfile(self.name + 'gen.txt'):
+			self.load()
+		else:
+			self.genome = ''.join([format(np.random.randint(2**self.DEPTH), '0%ib' % self.DEPTH)
+								   for _ in range(self.LENGTH)])
+			self.save()
+
+
+	def save(self):
+		with open(self.name + 'gen.txt', 'w') as f:
+			f.write(self.genome)
+
+
+	def load(self):
+		with open(self.name + 'gen.txt', 'r') as f:
+			self.genome = f.readline()
+
+
+	def make_network(self):
+		n_layers = max([(self.next_int() % self.MAX_LAYERS) + 1, 3])
+		tms = []  # transition matrices
+		input_dim = (2, self.N_PIECES, self.BOARD_DIM, self.BOARD_DIM)
+		layer_dims = [input_dim]
+		for n in range(n_layers - 2):
+			layer_dims.append(self.new_layer())
+			tms.append(self.generate_tm(layer_dims[-2], layer_dims[-1]))
+		output_dim = (self.N_PIECES, self.BOARD_DIM, self.BOARD_DIM, self.BOARD_DIM, self.BOARD_DIM)
+		layer_dims.append(output_dim)
+		tms.append(self.generate_tm(layer_dims[-2], layer_dims[-1]))
+		return Network(layer_dims, tms, name=self.name)
+
+	
+	def next_int(self):
+		self.i += self.DEPTH
+		if self.i >= len(self.genome):
+			raise ValueError('Genome length exceeded')
+		return int(self.genome[self.i-self.DEPTH: self.i], base=2)
+
+
+	def generate_tm(self, dim0, dim1):
+		tm = np.zeros(dim0 + dim1).flatten()
+		for i in range(tm.size):
+			tm[i] = (self.next_int() - 2**(self.DEPTH - 1)) / 2**(self.DEPTH - 1)
+		return tm.reshape(dim0 + dim1)
+
+
+	def new_layer(self):
+		n_dims = (self.next_int() % self.MAX_DIMS) + 1
+		layer_dim = tuple((self.next_int() % self.BOARD_DIM) + 1 for _ in range(n_dims))
+		return layer_dim
 
 
 if __name__ == '__main__':
@@ -265,5 +335,10 @@ if __name__ == '__main__':
 	import numpy as np
 	self = Network(show=True)
 	self.train_king_hunt(n_games=5)
+
+	from AI import Genome
+	import numpy as np
+	self = Genome()
+	network = self.make_network()
 	
 
